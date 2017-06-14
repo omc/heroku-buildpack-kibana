@@ -32,6 +32,7 @@ fi
 
 KIBANA_PACKAGE=${DOWNLOAD_URL##*/}
 
+
 case ${KIBANA_PACKAGE} in
   *.tar.gz)
     KIBANA_DIR="$BUILD_DIR/${KIBANA_PACKAGE%%.tar.gz}"
@@ -47,7 +48,8 @@ mkdir="mkdir -p"
 download="curl -sLO"
 extract="$tar -C $BUILD_DIR --wildcards -f"
 verify="sha1sum --check --warn"
-configure='sed -i s/^\x23\x20\(elasticsearch.url:\x20\).\{1,\}/\1"'$(echo $ELASTICSEARCH_URL | sed 's/\//\\\//g')'"/'
+configure_url='sed -i s/^\x23\x20\(elasticsearch.url:\x20\).\{1,\}/\1"'$(echo $ELASTICSEARCH_URL | sed 's/\//\\\//g')'"/'
+configure_index='sed -i s/^\x23\x20\(kibana.index:\x20\).\{1,\}/\1"'$(echo $KIBANA_INDEX | sed 's/\//\\\//g')'"/'
 
 
 echo "-----> Installing Kibana..."
@@ -59,9 +61,9 @@ if [ ! -f "$CACHE_DIR/$KIBANA_PACKAGE" ]; then
   echo "downloading $DOWNLOAD_URL" | indent
   $download $DOWNLOAD_URL
 
-  echo "verifying against ${DOWNLOAD_URL}.sha1" | indent
-  $download "${DOWNLOAD_URL}.sha1"
-  $verify "${KIBANA_PACKAGE}.sha1"
+  # echo "verifying against ${DOWNLOAD_URL}.sha1" | indent
+  # $download "${DOWNLOAD_URL}.sha1"
+  # $verify "${KIBANA_PACKAGE}.sha1"
 
   if [ $? -eq 0 ]; then
     mv $KIBANA_PACKAGE $CACHE_DIR
@@ -73,7 +75,10 @@ fi
 $extract $CACHE_DIR/$KIBANA_PACKAGE
 
 echo "-----> Configuring ELASTICSEARCH_URL"
-$configure $KIBANA_DIR/config/kibana.yml
+$configure_url $KIBANA_DIR/config/kibana.yml
+
+echo "-----> Configuring KIBANA_INDEX"
+$configure_index $KIBANA_DIR/config/kibana.yml
 
 echo "Exporting PATH" | indent
 echo 'export PATH="$PATH:'${KIBANA_DIR##*/}'/bin"' > $INIT_SCRIPT
