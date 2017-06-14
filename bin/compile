@@ -24,6 +24,12 @@ else
   DOWNLOAD_URL="https://artifacts.elastic.co/downloads/kibana/kibana-5.4.1-linux-x86_64.tar.gz"
 fi
 
+if [ -f "$ENV_DIR/KIBANA_URL" ]; then
+  KIBANA_URL=$(cat $ENV_DIR/KIBANA_URL)
+else
+  KIBANA_URL=".kibana"
+fi
+
 KIBANA_PACKAGE=${DOWNLOAD_URL##*/}
 
 case ${KIBANA_PACKAGE} in
