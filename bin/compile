@@ -21,7 +21,7 @@ fi
 if [ -f "$ENV_DIR/DOWNLOAD_URL" ]; then
   DOWNLOAD_URL=$(cat $ENV_DIR/DOWNLOAD_URL)
 else
-  DOWNLOAD_URL="https://download.elastic.co/kibana/kibana/kibana-4.6.3-linux-x86_64.tar.gz"
+  DOWNLOAD_URL="https://artifacts.elastic.co/downloads/kibana/kibana-5.4.1-linux-x86_64.tar.gz"
 fi
 
 KIBANA_PACKAGE=${DOWNLOAD_URL##*/}
@@ -53,9 +53,9 @@ if [ ! -f "$CACHE_DIR/$KIBANA_PACKAGE" ]; then
   echo "downloading $DOWNLOAD_URL" | indent
   $download $DOWNLOAD_URL
 
-  echo "verifying against ${DOWNLOAD_URL}.sha1.txt" | indent
-  $download "${DOWNLOAD_URL}.sha1.txt"
-  $verify "${KIBANA_PACKAGE}.sha1.txt"
+  echo "verifying against ${DOWNLOAD_URL}.sha1" | indent
+  $download "${DOWNLOAD_URL}.sha1"
+  $verify "${KIBANA_PACKAGE}.sha1"
 
   if [ $? -eq 0 ]; then
     mv $KIBANA_PACKAGE $CACHE_DIR
