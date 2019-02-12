@@ -123,9 +123,7 @@ if [ $UNAME != "" ]; then
   echo "elasticsearch.username: ${UNAME}" >> $KIBANA_CONF
   echo "elasticsearch.password: ${PWORD}" >> $KIBANA_CONF
   if [ "$(major_version)" -ge "6" ]; then
-    ENCODED_AUTH=$(echo -n ${UNAME}:${PWORD} | base64)
-    echo "elasticsearch.customHeaders: { Authorization: basic $ENCODED_AUTH }" >> $KIBANA_CONF
-    echo "elasticsearch.requestHeadersWhitelist: []" >> $KIBANA_CONF
+    echo "elasticsearch.requestHeadersWhitelist: [ authorization ]"
   fi
 fi
 
