@@ -15,20 +15,18 @@ See our other repo at https://github.com/omc/heroku-kibana for a one-click deplo
 Or, to use as a standalone buildpack:
 
     # Create a new project with the --buildpack option
-    $ heroku create --buildpack https://github.com/omc/heroku-buildpack-kibana
-
-    # ...Or update an existing project with heroku buildpacks:set
-    $ heroku buildpacks:set https://github.com/omc/heroku-buildpack-kibana
+    $ mkdir kibana1 && cd kibana1 && git init
+    $ heroku create kibana1 --buildpack https://github.com/omc/heroku-buildpack-kibana
 
     # Let Kibana know where to find Elasticsearch
     $ heroku config:set ELASTICSEARCH_URL="https://kibanauser:kibanapass@host.region.bonsaisearch.net"
 
     # Create a Procfile to run the Kibana web server
-    $ cat Procfile
-    web: kibana --port $PORT
+    $ echo 'web: kibana --port $PORT' > Procfile
 
     # Push the above to trigger a deploy
-    $ git push heroku master
+    $ git add . && git commit -am "Kibana setup" && git push heroku master
 
-    # Verify and profit!
+    # Open the app in your browser.  You may be prompted for a username/password, which
+    # matches the username and password of your elasticsearch URL.
     $ heroku open

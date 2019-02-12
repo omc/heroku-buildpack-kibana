@@ -112,15 +112,18 @@ if [ ! -z "$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}
   PWORD="$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}@' | sed -E 's/.*:\/\/([a-zA-Z0-9]{1,}):([a-zA-Z0-9]{1,}).*/\2/')"
 fi
 
-ENCODED_AUTH="whoo"
+
 KIBANA_CONF="${CACHE_DIR}/kibana.yml"
 
-echo "elasticsearch.url: ${ELASTICSEARCH_URL}" > $KIBANA_CONF
+# Heroku doesn't like the default of localhost
+echo "server.host: 0.0.0.0" > $KIBANA_CONF
+echo "elasticsearch.url: ${ELASTICSEARCH_URL}" >> $KIBANA_CONF
 
 if [ $UNAME != "" ]; then
   echo "elasticsearch.username: ${UNAME}" >> $KIBANA_CONF
   echo "elasticsearch.password: ${PWORD}" >> $KIBANA_CONF
   if [ "$(major_version)" -ge "6" ]; then
+    ENCODED_AUTH=$(echo -n ${UNAME}:${PWORD} | base64)
     echo "elasticsearch.customHeaders: { Authorization: basic $ENCODED_AUTH }" >> $KIBANA_CONF
     echo "elasticsearch.requestHeadersWhitelist: []" >> $KIBANA_CONF
   fi
