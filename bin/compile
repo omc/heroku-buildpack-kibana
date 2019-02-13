@@ -45,17 +45,22 @@ else
   ELASTICSEARCH_URL="http://localhost:9200"
 fi
 
-# Query the ES URL and extract the version
-DETAILS=$(curl -s $ELASTICSEARCH_URL)
-
-if [ $? -ne 0 ]; then
-  echo "Unable to access $ELASTICSEARCH_URL, cannot install Kibana"
-  exit 1
+# Check for overridden elasticsearch version (For private clusters, etc)
+if [ -f "$ENV_DIR/ELASTICSEARCH_VERSION" ]; then
+  ELASTICSEARCH_VERSION=$(cat $ENV_DIR/ELASTICSEARCH_VERSION)
+  ELASTICSEARCH_FLAVOR=$(cat $ENV_DIR/ELASTICSEARCH_FLAVOR || 'oss')
+else
+  echo "-----> Hitting Elasticsearch URL to detect version..."
+  # Query the ES URL and extract the version
+  DETAILS=$(curl --connect-timeout 5 -s $ELASTICSEARCH_URL)
+  if [ $? -ne 0 ]; then
+    echo "Unable to access $ELASTICSEARCH_URL, cannot install Kibana"
+    exit 1
+  fi
+  # Extract the version and flavor
+  ELASTICSEARCH_VERSION=$(echo $DETAILS | grep -m1 -oP '"number"\s*:\s*"\K[^"]+')
+  ELASTICSEARCH_FLAVOR=$(echo $DETAILS | grep -m1 -oP '"build_flavor"\s*:\s*"\K[^"]+')
 fi
-
-# Extract the version and flavor
-ELASTICSEARCH_VERSION=$(echo $DETAILS | grep -m1 -oP '"number"\s*:\s*"\K[^"]+')
-ELASTICSEARCH_FLAVOR=$(echo $DETAILS | grep -m1 -oP '"build_flavor"\s*:\s*"\K[^"]+')
 
 # Compose a URL to fetch kibana
 DOWNLOAD_URL=$(download_url)
@@ -111,7 +116,6 @@ if [ ! -z "$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}
   UNAME="$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}@' | sed -E 's/.*:\/\/([a-zA-Z0-9]{1,}):([a-zA-Z0-9]{1,}).*/\1/')"
   PWORD="$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}@' | sed -E 's/.*:\/\/([a-zA-Z0-9]{1,}):([a-zA-Z0-9]{1,}).*/\2/')"
 fi
-
 
 KIBANA_CONF="${CACHE_DIR}/kibana.yml"
 
