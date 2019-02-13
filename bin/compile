@@ -48,7 +48,11 @@ fi
 # Check for overridden elasticsearch version (For private clusters, etc)
 if [ -f "$ENV_DIR/ELASTICSEARCH_VERSION" ]; then
   ELASTICSEARCH_VERSION=$(cat $ENV_DIR/ELASTICSEARCH_VERSION)
-  ELASTICSEARCH_FLAVOR=$(cat $ENV_DIR/ELASTICSEARCH_FLAVOR || 'oss')
+  if [ -f "$ENV_DIR/ELASTICSEARCH_FLAVOR" ]; then
+    ELASTICSEARCH_FLAVOR=$(cat $ENV_DIR/ELASTICSEARCH_FLAVOR || echo -n 'oss')
+  else
+    ELASTICSEARCH_FLAVOR='oss'
+  fi
 else
   echo "-----> Hitting Elasticsearch URL to detect version..."
   # Query the ES URL and extract the version
