@@ -1,7 +1,28 @@
-#!/bin/sh
+#!/bin/bash
 
 indent() {
   sed -u 's/^/       /'
+}
+
+function major_version() {
+  echo $ELASTICSEARCH_VERSION | cut -d . -f 1
+}
+
+function minor_version() {
+  echo $ELASTICSEARCH_VERSION | cut -d . -f 2
+}
+
+# if version >= 6.3, choose oss or x-pack depending on elasticsearch build from sniff
+function download_url() {
+  if [ "$(major_version)" -ge "6" ] && [ "$(minor_version)" -ge "3" ]; then
+    if [ $ELASTICSEARCH_FLAVOR == "oss" ]; then
+      echo "https://artifacts.elastic.co/downloads/kibana/kibana-oss-${ELASTICSEARCH_VERSION}-linux-x86_64.tar.gz"
+    else
+      echo "https://artifacts.elastic.co/downloads/kibana/kibana-${ELASTICSEARCH_VERSION}-linux-x86_64.tar.gz"
+    fi
+  else
+    echo "https://artifacts.elastic.co/downloads/kibana/kibana-${ELASTICSEARCH_VERSION}-linux-x86_64.tar.gz"
+  fi
 }
 
 BUILD_DIR=$1
@@ -24,58 +45,54 @@ else
   ELASTICSEARCH_URL="http://localhost:9200"
 fi
 
-# Check for username/password
-if [ ! -z "$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}@')" ]; then
-  UNAME="$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}@' | sed -E 's/.*:\/\/([a-zA-Z0-9]{1,}):([a-zA-Z0-9]{1,}).*/\1/')"
-  PWORD="$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}@' | sed -E 's/.*:\/\/([a-zA-Z0-9]{1,}):([a-zA-Z0-9]{1,}).*/\2/')"
+# Query the ES URL and extract the version
+DETAILS=$(curl -s $ELASTICSEARCH_URL)
+
+if [ $? -ne 0 ]; then
+  echo "Unable to access $ELASTICSEARCH_URL, cannot install Kibana"
+  exit 1
 fi
 
-if [ -f "$ENV_DIR/DOWNLOAD_URL" ]; then
-  DOWNLOAD_URL=$(cat $ENV_DIR/DOWNLOAD_URL)
-else
-  DOWNLOAD_URL="https://artifacts.elastic.co/downloads/kibana/kibana-5.4.3-linux-x86_64.tar.gz"
-fi
+# Extract the version and flavor
+ELASTICSEARCH_VERSION=$(echo $DETAILS | grep -m1 -oP '"number"\s*:\s*"\K[^"]+')
+ELASTICSEARCH_FLAVOR=$(echo $DETAILS | grep -m1 -oP '"build_flavor"\s*:\s*"\K[^"]+')
+
+# Compose a URL to fetch kibana
+DOWNLOAD_URL=$(download_url)
 
 KIBANA_PACKAGE=${DOWNLOAD_URL##*/}
-
 case ${KIBANA_PACKAGE} in
   *.tar.gz)
-    KIBANA_DIR="$BUILD_DIR/${KIBANA_PACKAGE%%.tar.gz}"
-    tar="tar xz"
     ;;
   *)
     echo "Only tar.gz is supported: $KIBANA_PACKAGE" | indent
     exit 1
     ;;
 esac
+KIBANA_DIR="$BUILD_DIR/kibana-${ELASTICSEARCH_VERSION}-linux-x86_64"
 
-mkdir="mkdir -p"
-download="curl -sLO"
-extract="$tar -C $BUILD_DIR --wildcards -f"
-verify="sha1sum --check --warn"
-configure='sed -i s/^\x23\(elasticsearch.url:\x20\).\{1,\}/\1"'$(echo $ELASTICSEARCH_URL | sed 's/\//\\\//g')'"/'
-configure_user='sed -i s/^\x23\(elasticsearch.username:\x20\).\{1,\}/\1"'$(echo $UNAME | sed 's/\//\\\//g')'"/'
-configure_pass='sed -i s/^\x23\(elasticsearch.password:\x20\).\{1,\}/\1"'$(echo $PWORD | sed 's/\//\\\//g')'"/'
-configure_host='sed -i s/^\x23\(server.host:\x20\).\{1,\}/\10.0.0.0/'
-show_config='egrep "^\[^\x23\]"'
+echo "-----> Installing Kibana ${KIBANA_PACKAGE}..."
 
-echo "-----> Installing Kibana..."
-
-$mkdir ${INIT_SCRIPT%/*}
-$mkdir $CACHE_DIR
+mkdir -p ${INIT_SCRIPT%/*}
+mkdir -p $CACHE_DIR
 
 if [ ! -f "$CACHE_DIR/$KIBANA_PACKAGE" ]; then
 
-  echo "downloading $KIBANA_PACKAGE from $DOWNLOAD_URL" | indent
-  $download $DOWNLOAD_URL
+  echo "Downloading $KIBANA_PACKAGE from $DOWNLOAD_URL" | indent
+  curl -sLO $DOWNLOAD_URL
 
-  echo "verifying against ${DOWNLOAD_URL}.sha1" | indent
-  $download "${DOWNLOAD_URL}.sha1"
-  echo "$(cat ${KIBANA_PACKAGE}.sha1) *${KIBANA_PACKAGE}" > ${KIBANA_PACKAGE}.sha1
-  echo "Contents of the SHA1: " | indent
-  cat ${KIBANA_PACKAGE}.sha1
+  if [ $? -ne 0 ]; then
+    echo "Unable to fetch $DOWNLOAD_URL, cannot install Kibana"
+    exit 1
+  fi
 
-  $verify "${KIBANA_PACKAGE}.sha1"
+  # echo "Verifying against ${DOWNLOAD_URL}.sha1" | indent
+  # curl -sLO "${DOWNLOAD_URL}.sha1"
+  # echo "$(cat ${KIBANA_PACKAGE}.sha1) *${KIBANA_PACKAGE}" > ${KIBANA_PACKAGE}.sha1
+  # echo "Contents of the SHA1: " | indent
+  # cat ${KIBANA_PACKAGE}.sha1
+
+  # sha1sum --check --warn "${KIBANA_PACKAGE}.sha1"
 
   if [ $? -eq 0 ]; then
     mv $KIBANA_PACKAGE $CACHE_DIR
@@ -84,20 +101,39 @@ if [ ! -f "$CACHE_DIR/$KIBANA_PACKAGE" ]; then
   fi
 fi
 
-$extract $CACHE_DIR/$KIBANA_PACKAGE
+echo "-----> Extracting Kibana ${KIBANA_PACKAGE}..."
+tar xz -C $BUILD_DIR --wildcards -f $CACHE_DIR/$KIBANA_PACKAGE
 
-echo "-----> Configuring ELASTICSEARCH_URL"
-$configure $KIBANA_DIR/config/kibana.yml
-$configure_host $KIBANA_DIR/config/kibana.yml
-echo "$(grep 'elasticsearch.url' $KIBANA_DIR/config/kibana.yml)" | indent
+echo "-----> Configuring Kibana @ ${KIBANA_DIR}..."
+
+# Check for username/password
 if [ ! -z "$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}@')" ]; then
-  echo "Updating the authentication credentials" | indent
-  $configure_user $KIBANA_DIR/config/kibana.yml
-  $configure_pass $KIBANA_DIR/config/kibana.yml
+  UNAME="$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}@' | sed -E 's/.*:\/\/([a-zA-Z0-9]{1,}):([a-zA-Z0-9]{1,}).*/\1/')"
+  PWORD="$(echo $ELASTICSEARCH_URL | egrep '://[a-zA-Z0-9]{1,}:[a-zA-Z0-9]{1,}@' | sed -E 's/.*:\/\/([a-zA-Z0-9]{1,}):([a-zA-Z0-9]{1,}).*/\2/')"
 fi
 
-echo "Configuration settings applied:" | indent
-echo "$(egrep '^[^#]' $KIBANA_DIR/config/kibana.yml)" | indent
 
-echo "Exporting PATH" | indent
+KIBANA_CONF="${CACHE_DIR}/kibana.yml"
+
+# Heroku doesn't like the default of localhost
+echo "server.host: 0.0.0.0" > $KIBANA_CONF
+echo "elasticsearch.url: ${ELASTICSEARCH_URL}" >> $KIBANA_CONF
+
+if [ $UNAME != "" ]; then
+  echo "elasticsearch.username: ${UNAME}" >> $KIBANA_CONF
+  echo "elasticsearch.password: ${PWORD}" >> $KIBANA_CONF
+  if [ "$(major_version)" -ge "6" ]; then
+    echo "elasticsearch.requestHeadersWhitelist: [ authorization ]" >> $KIBANA_CONF
+  fi
+fi
+
+echo "-----> Configured Kibana"
+echo
+cat $KIBANA_CONF
+echo
+
+echo "-----> Applying configuration"
+mv -v $KIBANA_CONF $KIBANA_DIR/config/kibana.yml
+
+echo "-----> Exporting Path"
 echo 'export PATH="$PATH:'${KIBANA_DIR##*/}'/bin"' > $INIT_SCRIPT
