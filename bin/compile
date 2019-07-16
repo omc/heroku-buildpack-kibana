@@ -12,14 +12,20 @@ function minor_version() {
   echo $ELASTICSEARCH_VERSION | cut -d . -f 2
 }
 
+function is_version_above() {
+  major=$1
+  minor=$2
+  if [[ ( "$(major_version)" -ge "${major}" && "$(minor_version)" -ge "${minor}" ) || "$(major_version)" -gt "${major}" ]]; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
 # if version >= 6.3, choose oss or x-pack depending on elasticsearch build from sniff
 function download_url() {
-  if [ "$(major_version)" -ge "6" ] && [ "$(minor_version)" -ge "3" ]; then
-    if [ $ELASTICSEARCH_FLAVOR == "oss" ]; then
-      echo "https://artifacts.elastic.co/downloads/kibana/kibana-oss-${ELASTICSEARCH_VERSION}-linux-x86_64.tar.gz"
-    else
-      echo "https://artifacts.elastic.co/downloads/kibana/kibana-${ELASTICSEARCH_VERSION}-linux-x86_64.tar.gz"
-    fi
+  if [[ "$(is_version_above '6' '3')" == "1" && "${ELASTICSEARCH_FLAVOR}" == "oss" ]]; then
+    echo "https://artifacts.elastic.co/downloads/kibana/kibana-oss-${ELASTICSEARCH_VERSION}-linux-x86_64.tar.gz"
   else
     echo "https://artifacts.elastic.co/downloads/kibana/kibana-${ELASTICSEARCH_VERSION}-linux-x86_64.tar.gz"
   fi
@@ -125,7 +131,12 @@ KIBANA_CONF="${CACHE_DIR}/kibana.yml"
 
 # Heroku doesn't like the default of localhost
 echo "server.host: 0.0.0.0" > $KIBANA_CONF
-echo "elasticsearch.url: ${ELASTICSEARCH_URL}" >> $KIBANA_CONF
+
+if [ "$(is_version_above '6' '6')" == "1" ]; then
+  echo "elasticsearch.hosts: [\"${ELASTICSEARCH_URL}\"]" >> $KIBANA_CONF
+else
+  echo "elasticsearch.url: ${ELASTICSEARCH_URL}" >> $KIBANA_CONF
+fi
 
 if [ $UNAME != "" ]; then
   echo "elasticsearch.username: ${UNAME}" >> $KIBANA_CONF
