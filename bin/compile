@@ -39,12 +39,12 @@ INIT_SCRIPT="$BUILD_DIR/.profile.d/kibana.sh"
 
 # If the user supplied a URL and the URL is not empty, use it
 if [ -f "$ENV_DIR/ELASTICSEARCH_URL" ] && [ ! -z "$ENV_DIR/ELASTICSEARCH_URL" ]; then
-  ELASTICSEARCH_URL="$(cat $ENV_DIR/ELASTICSEARCH_URL):443"
+  ELASTICSEARCH_URL="$(cat $ENV_DIR/ELASTICSEARCH_URL)"
 
 # If the user DID NOT supply a URL, or the URL they supplied is empty,
 # use BONSAI_URL if it is available
 elif [ -f "$ENV_DIR/BONSAI_URL" ]; then
-  ELASTICSEARCH_URL="$(cat $ENV_DIR/BONSAI_URL):443"
+  ELASTICSEARCH_URL="$(cat $ENV_DIR/BONSAI_URL)"
 
 # Default to localhost for lack of anything else?
 else
